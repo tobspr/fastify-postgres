@@ -139,11 +139,10 @@ class Database {
         // Patch the query method so that if it fails it will print an error first (and set the running flag)
         const db = this;
         const oldQueryMethod = client.query;
-        if (!oldQueryMethod.patched) {
+        if (!oldQueryMethod.methodWasPatched_) {
             this.logger.trace("Patching query method", { id: client.uniqueId });
             client.query = async function (text, params) {
-                const trimmedText = text.replace(/\W+/gi, " ").replace(/^\s+|\s+$/g, "");
-
+                const trimmedText = text.replace(/[ \n\r\t]+/gi, " ").replace(/^\s+|\s+$/g, "");
                 // db.logger.trace("Issuing query", { text: trimmedText, params });
                 this.lastQuery = { text: trimmedText, params };
                 this.isQueryRunning = true;
@@ -157,13 +156,13 @@ class Database {
                     this.isQueryRunning = false;
                 }
             }
-            client.query.patched = true;
+            client.query.methodWasPatched_ = true;
         }
 
         // Patch the release method so we stop our sanity timeout
 
         const oldReleaseMethod = client.release;
-        if (!oldReleaseMethod.patched) {
+        if (!oldReleaseMethod.methodWasPatched_) {
             this.logger.trace("Patching release method", { id: client.uniqueId });
             client.release = function () {
                 db.logger.trace("Releasing client", { id: this.uniqueId });
@@ -178,7 +177,7 @@ class Database {
                 // Actually release
                 return oldReleaseMethod.apply(this);
             }
-            client.release.patched = true;
+            client.release.methodWasPatched_ = true;
         }
     }
 
