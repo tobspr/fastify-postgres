@@ -14,3 +14,4 @@ This is **not** an npm package! Simply include this repo into your module, add `
         maxConnections: 20
     });
 ```
+
