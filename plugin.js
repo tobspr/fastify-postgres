@@ -18,6 +18,7 @@ async function postgresDbConnector(fastify, options) {
     const requestDecorator = options.requestDecoratorName || "dbClient";
 
     const logger = fastify.log.child({ plugin: decoratorName });
+
     const pool = new pg.Pool({
         Client: pg.Client,
         connectionString: options.url,
@@ -42,7 +43,7 @@ async function postgresDbConnector(fastify, options) {
     }
     client.release();
 
-    const database = new Database(fastify, { logger, pool, requestDecorator });
+    const database = new Database(fastify, { logger, pool, requestDecorator, requestDecorator });
     database.registerHooks();
     fastify.decorate(decoratorName, database);
 }

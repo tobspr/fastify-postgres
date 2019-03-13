@@ -15,12 +15,11 @@ class Database {
      * @param {any} fastify The fastify instance
      * @param {any} logger The logger, usually fastify.log or fastify.log.child
      */
-    constructor(fastify, { logger, pool, clientDecorator = "dbClient" }) {
+    constructor(fastify, { logger, pool, requestDecorator }) {
         this.fastify = fastify;
         this.logger = logger;
         this.pool = pool;
-        this.clientDecorator = clientDecorator;
-
+        this.requestDecorator = requestDecorator;
         this.clientIdCounter = 1;
     }
 
@@ -30,20 +29,22 @@ class Database {
     registerHooks() {
         // When the response has been sent, check if there is an active database client
         this.fastify.addHook("onSend", async (request) => {
-            const client = request[this.clientDecorator];
-            if (client) {
-                this.logger.trace("Releasing client automatically on send", { id: client.uniqueId });
-                client.release();
+            const clients = request.dbClients;
+            if (clients && clients.length > 0) {
+                this.logger.trace("Releasing clients automatically on send", { amount: clients.length });
+                clients.forEach(client => client.release());
             }
+            request.dbClients = [];
         });
 
         // When the request errored, check if there is an active database client left
         this.fastify.addHook("onError", async (request) => {
-            const client = request[this.clientDecorator];
-            if (client) {
-                this.logger.trace("Releasing client automatically on error", { id: client.uniqueId });
-                client.release();
+            const clients = request.dbClients;
+            if (clients && clients.length > 0) {
+                this.logger.trace("Releasing clients automatically on send", { amount: clients.length });
+                clients.forEach(client => client.release());
             }
+            request.dbClients = [];
         });
     }
 
@@ -108,7 +109,14 @@ class Database {
     requireDbClient() {
         return async (request) => {
             // Simply acquire a client under the given name
-            request[this.clientDecorator] = await this.getClient();
+            const client = await this.getClient();
+            request[this.requestDecorator] = client;
+            if (!request.dbClients) {
+                request.dbClients = [client];
+            } else {
+                request.dbClients.push(client);
+            }
+
         }
     }
 
