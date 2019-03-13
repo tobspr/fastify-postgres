@@ -4,6 +4,7 @@ const pg = require("pg");
 // Named parameters
 const patchNamedParameters = require("./named_parameters").patchNamedParameters;
 
+
 /**
  * Main database handler
  */
@@ -19,6 +20,8 @@ class Database {
         this.logger = logger;
         this.pool = pool;
         this.clientDecorator = clientDecorator;
+
+        this.clientIdCounter = 1;
     }
 
     /**
@@ -27,17 +30,19 @@ class Database {
     registerHooks() {
         // When the response has been sent, check if there is an active database client
         this.fastify.addHook("onSend", async (request) => {
-            if (request[this.clientDecorator]) {
-                this.logger.trace("Releasing DB client automatically on send");
-                request[this.clientDecorator].release();
+            const client = request[this.clientDecorator];
+            if (client) {
+                this.logger.trace("Releasing client automatically on send", { id: client.uniqueId });
+                client.release();
             }
         });
 
         // When the request errored, check if there is an active database client left
         this.fastify.addHook("onError", async (request) => {
-            if (request[this.clientDecorator]) {
-                this.logger.trace("Releasing DB client automatically on error");
-                request[this.clientDecorator].release();
+            const client = request[this.clientDecorator];
+            if (client) {
+                this.logger.trace("Releasing client automatically on error", { id: client.uniqueId });
+                client.release();
             }
         });
     }
@@ -61,28 +66,30 @@ class Database {
      * @returns {Promise<pg.PoolClient>} The database client
      */
     async getClient() {
-        this.logger.trace("Acquiring client");
         const client = await this.pool.connect();
-
-        // The same client can be returned after it has been returned to the pool, so only
-        // patch it once
-        if (!client.patched) {
-            this.logger.trace("Patching client");
-            client.patched = true;
-            this.patchClient(client);
+        if (!client.uniqueId) {
+            client.uniqueId = this.clientIdCounter++;
         }
+        this.logger.trace("Acquired client", { id: client.uniqueId });
+
+        this.patchClient(client);
 
         // If there is still a query running, something really went nuts, because then the client
         // should not have been returned
         if (client.sanityTimeout) {
-            this.logger.error("Client is busy and still got returned from pool");
+            this.logger.error("Client is busy and still got returned from pool", { id: client.uniqueId });
             clearTimeout(client.sanityTimeout);
+            client.sanityTimeout = null;
+        }
+
+        if (client.isQueryRunning) {
+            this.logger.error("Client is running query and still got returned from pool", { id: client.uniqueId });
         }
 
         // Set a timeout of x seconds after which we will log this client's last query
         client.sanityTimeout = setTimeout(() => {
             this.logger.error("A client has been checked out for more than 5 seconds, forced release",
-                { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning });
+                { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
             client.release();
 
             // If the apm (Application Performance Monitoring) plugin is available, send report
@@ -90,7 +97,7 @@ class Database {
                 this.fastify.apmTrackError("DB Client has been checked out for more than 5 seconds",
                     { lastQuery: client.lastQuery });
             }
-        }, 15000);
+        }, 5000);
         return client;
     }
 
@@ -106,46 +113,64 @@ class Database {
     }
 
     /**
-     * Internal method to patch a datbase client, adding named parameters support and better error handling
+     * Internal method to patch a datbase client, adding named parameters support and better error handling.
+     * Needs to get called on every new client because pg-pool overrides the release method every time (meh)
      * @param {pg.PoolClient} client
      */
     patchClient(client) {
 
+        this.logger.trace("Patching client", { id: client.uniqueId });
+
         // Add support for named parameters
-        patchNamedParameters(client);
+        if (!client.namedParameters) {
+            this.logger.trace("Patching named parameters", { id: client.uniqueId });
+            client.namedParameters = true;
+            patchNamedParameters(client);
+        }
 
         // Patch the query method so that if it fails it will print an error first (and set the running flag)
         const db = this;
         const oldQueryMethod = client.query;
-        client.query = async function (text, params) {
-            db.logger.trace("Issuing query", { text, params });
-            this.lastQuery = { text, params };
-            this.isQueryRunning = true;
-            try {
-                const result = await oldQueryMethod.call(this, text, params);
-                return result;
-            } catch (err) {
-                db.logger.error("Database query error", { error: err });
-                throw err;
-            } finally {
-                this.isQueryRunning = false;
+        if (!oldQueryMethod.patched) {
+            this.logger.trace("Patching query method", { id: client.uniqueId });
+            client.query = async function (text, params) {
+                const trimmedText = text.replace(/\W+/gi, " ").replace(/^\s+|\s+$/g, "");
+
+                // db.logger.trace("Issuing query", { text: trimmedText, params });
+                this.lastQuery = { text: trimmedText, params };
+                this.isQueryRunning = true;
+                try {
+                    const result = await oldQueryMethod.call(this, text, params);
+                    return result;
+                } catch (err) {
+                    db.logger.error("Database query error", { error: err });
+                    throw err;
+                } finally {
+                    this.isQueryRunning = false;
+                }
             }
+            client.query.patched = true;
         }
 
         // Patch the release method so we stop our sanity timeout
+
         const oldReleaseMethod = client.release;
-        client.release = function () {
-            db.logger.trace("Releasing client");
+        if (!oldReleaseMethod.patched) {
+            this.logger.trace("Patching release method", { id: client.uniqueId });
+            client.release = function () {
+                db.logger.trace("Releasing client", { id: this.uniqueId });
 
-            // Clear our timeout and state which checks for unreleased clients
-            client.isQueryRunning = false;
-            if (client.sanityTimeout) {
-                clearTimeout(client.sanityTimeout);
-                client.sanityTimeout = null;
+                // Clear our timeout and state which checks for unreleased clients
+                this.isQueryRunning = false;
+                if (this.sanityTimeout) {
+                    clearTimeout(this.sanityTimeout);
+                    this.sanityTimeout = null;
+                }
+
+                // Actually release
+                return oldReleaseMethod.apply(this);
             }
-
-            // Actually release
-            return oldReleaseMethod.apply(client);
+            client.release.patched = true;
         }
     }
 

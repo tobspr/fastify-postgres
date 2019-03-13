@@ -19,6 +19,7 @@ async function postgresDbConnector(fastify, options) {
 
     const logger = fastify.log.child({ plugin: decoratorName });
     const pool = new pg.Pool({
+        Client: pg.Client,
         connectionString: options.url,
         connectionTimeoutMillis: options.connectionTimeout || 5000,
         // ssl: true, // Not supported with pg-native
