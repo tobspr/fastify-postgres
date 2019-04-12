@@ -66,7 +66,7 @@ class Database {
      * Retrieves a new database client
      * @returns {Promise<pg.PoolClient>} The database client
      */
-    async getClient() {
+    async getClientUnsafe() {
         const client = await this.pool.connect();
         if (!client.uniqueId) {
             client.uniqueId = this.clientIdCounter++;
@@ -109,14 +109,14 @@ class Database {
     requireDbClient() {
         return async (request) => {
             // Simply acquire a client under the given name
-            const client = await this.getClient();
+            const client = await this.getClientUnsafe();
             request[this.requestDecorator] = client;
             if (!request.dbClients) {
                 request.dbClients = [client];
             } else {
                 request.dbClients.push(client);
             }
-
+            return client;
         }
     }
 
