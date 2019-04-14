@@ -89,16 +89,17 @@ class Database {
 
         // Set a timeout of x seconds after which we will log this client's last query
         client.sanityTimeout = setTimeout(() => {
-            this.logger.error("A client has been checked out for more than 5 seconds, forced release",
-                { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
             client.release();
 
             // If the apm (Application Performance Monitoring) plugin is available, send report
             if (this.fastify.apmTrackError) {
-                this.fastify.apmTrackError("DB Client has been checked out for more than 5 seconds",
-                    { lastQuery: client.lastQuery });
+                this.fastify.apmTrackError("DB Client has been checked out for more than 25 seconds",
+                    { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning });
+            } else {
+                this.logger.error("A client has been checked out for more than 25 seconds, forced release",
+                    { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
             }
-        }, 5000);
+        }, 25000);
         return client;
     }
 
@@ -111,10 +112,19 @@ class Database {
             // Simply acquire a client under the given name
             const client = await this.getClientUnsafe();
             request[this.requestDecorator] = client;
-            if (!request.dbClients) {
-                request.dbClients = [client];
+
+            if (this.fastify.addCleanupWork) {
+                // Use the cleanup plugin
+                this.fastify.addCleanupWork(request, async function () {
+                    client.release();
+                }, "release-db-client");
             } else {
-                request.dbClients.push(client);
+                // Cleanup plugin not installed, manually cleanup
+                if (!request.dbClients) {
+                    request.dbClients = [client];
+                } else {
+                    request.dbClients.push(client);
+                }
             }
             return client;
         }
