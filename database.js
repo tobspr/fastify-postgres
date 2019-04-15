@@ -137,11 +137,11 @@ class Database {
      */
     patchClient(client) {
 
-        this.logger.trace("Patching client", { id: client.uniqueId });
+        // this.logger.trace("Patching client", { id: client.uniqueId });
 
         // Add support for named parameters
         if (!client.namedParameters) {
-            this.logger.trace("Patching named parameters", { id: client.uniqueId });
+            // this.logger.trace("Patching named parameters", { id: client.uniqueId });
             client.namedParameters = true;
             patchNamedParameters(client);
         }
@@ -150,7 +150,7 @@ class Database {
         const db = this;
         const oldQueryMethod = client.query;
         if (!oldQueryMethod.methodWasPatched_) {
-            this.logger.trace("Patching query method", { id: client.uniqueId });
+            // this.logger.trace("Patching query method", { id: client.uniqueId });
             client.query = async function (text, params) {
                 const trimmedText = text.replace(/[ \n\r\t]+/gi, " ").replace(/^\s+|\s+$/g, "");
                 // db.logger.trace("Issuing query", { text: trimmedText, params });
@@ -170,12 +170,13 @@ class Database {
         }
 
         // Patch the release method so we stop our sanity timeout
-
         const oldReleaseMethod = client.release;
         if (!oldReleaseMethod.methodWasPatched_) {
-            this.logger.trace("Patching release method", { id: client.uniqueId });
+            // this.logger.trace("Patching release method", { id: client.uniqueId });
             client.release = function () {
                 db.logger.trace("Releasing client", { id: this.uniqueId });
+
+                this.rollbackTransactionIfNotCommitted();
 
                 // Clear our timeout and state which checks for unreleased clients
                 this.isQueryRunning = false;
@@ -189,6 +190,55 @@ class Database {
             }
             client.release.methodWasPatched_ = true;
         }
+
+
+        // Patch the beginTransaction method
+        const oldTransactionMethod = client.beginTransaction;
+        if (!oldTransactionMethod || !oldTransactionMethod.methodWasPatched_) {
+            // this.logger.trace("Patching beginTransaction Method", { id: client.uniqueId });
+            client.beginTransaction = async function () {
+                if (this.isWithinTransaction_) {
+                    db.logger.error("Tried to start transaction in transaction");
+                    return false;
+                }
+                db.logger.trace("begin transaction");
+                await this.query("begin");
+                this.isWithinTransaction_ = true;
+            }
+            client.beginTransaction.methodWasPatched_ = true;
+        }
+
+        // Patch the commitTransaction method
+        const oldCommitMethod = client.commitTransaction;
+        if (!oldCommitMethod || !oldCommitMethod.methodWasPatched_) {
+            // this.logger.trace("Patching commitTransaction Method", { id: client.uniqueId });
+            client.commitTransaction = async function () {
+                if (!this.isWithinTransaction_) {
+                    db.logger.error("Tried to commit transaction outside of transaction");
+                    return false;
+                }
+                db.logger.trace("committing");
+                await this.query("commit");
+                this.isWithinTransaction_ = false;
+            }
+            client.commitTransaction.methodWasPatched_ = true;
+        }
+
+        // Patch the rollbackTransactionIfNotCommitted method
+        const oldRollbackMethod = client.rollbackTransactionIfNotCommitted;
+        if (!oldRollbackMethod || !oldRollbackMethod.methodWasPatched_) {
+            // this.logger.trace("Patching rollbackTransactionIfNotCommitted Method", { id: client.uniqueId });
+            client.rollbackTransactionIfNotCommitted = async function () {
+                if (this.isWithinTransaction_) {
+                    db.logger.warn("Rolling back transaction");
+                    await this.query("rollback");
+                    this.isWithinTransaction_ = false;
+                }
+            }
+            client.rollbackTransactionIfNotCommitted.methodWasPatched_ = true;
+        }
+
+
     }
 
 
