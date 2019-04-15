@@ -21,6 +21,8 @@ fastify.register(require("./path_to_submodule/plugin.js"), {
     maxConnections: 20,
     connectionTimeout: 5000,
     keepAlive: true,
+
+    // How to decorate fastify, i.e. this results in fastify.database
     decoratorName: "database",
 
     // How to decorate the request object, by default the client will be available as "request.dbClient"
@@ -55,6 +57,41 @@ fastify.get("/", {
     return {
         result: query.rows[0]
     }
+});
+
+```
+
+### Transactions
+
+Transactions are supported:
+
+
+```javascript
+fastify.get("/", {
+
+    // This takes care of populating request.dbClient
+    preHandler: fastify.database.requireDbClient()
+
+}, async (request, reply) => {
+
+    // Start transaction
+    await request.dbClient.beginTransaction();
+
+    // Issue query
+    const query = await request.dbClient.query(`select * from sometable where id = ~id`, { id: 5 });
+
+    // ...Do something ...
+    
+    // throw err("xxx);
+    // ^ If an error is thrown anywhere in the handler, the transaction will be automatically
+    // get a rollback and the client will get released
+
+
+    // Commit transaction
+    await request.dbClient.commitTransaction();
+
+    // Again, client will automatically get released
+
 });
 
 ```
