@@ -10,7 +10,6 @@ pg = pg.native || pg;
 // Set Keepalive
 pg.defaults.poolIdleTimeout = 600000; // 10 mins
 
-
 // Main plugin
 async function postgresDbConnector(fastify, options) {
 
@@ -20,7 +19,9 @@ async function postgresDbConnector(fastify, options) {
     const logger = fastify.log.child({ plugin: decoratorName });
 
     const pool = new pg.Pool({
+        // @ts-ignore
         Client: pg.Client,
+        // @ts-ignore
         client: pg.Client,
         connectionString: options.url,
         connectionTimeoutMillis: options.connectionTimeout || 5000,
@@ -29,7 +30,7 @@ async function postgresDbConnector(fastify, options) {
         max: options.maxConnections || 20
     });
 
-    pool.on("error", (err, client) => {
+    pool.on("error", (err) => {
         logger.error("Unexpected error on idle client:", { error: err.message });
     });
 
@@ -44,10 +45,9 @@ async function postgresDbConnector(fastify, options) {
     }
     client.release();
 
-    const database = new Database(fastify, { logger, pool, requestDecorator, requestDecorator });
+    const database = new Database(fastify, { logger, pool, requestDecorator });
     database.registerHooks();
     fastify.decorate(decoratorName, database);
 }
 
 module.exports = fastifyPlugin(postgresDbConnector);
-

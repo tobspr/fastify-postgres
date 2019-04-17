@@ -4,14 +4,13 @@ const pg = require("pg");
 // Named parameters
 const patchNamedParameters = require("./named_parameters").patchNamedParameters;
 
-
 /**
  * Main database handler
  */
 class Database {
 
     /**
-     * 
+     *
      * @param {any} fastify The fastify instance
      * @param {any} logger The logger, usually fastify.log or fastify.log.child
      */
@@ -50,7 +49,7 @@ class Database {
 
     /**
      * Issues a new query on the pool without acquiring a client (async)
-     * @param {string} text The sql query 
+     * @param {string} text The sql query
      * @param {object} params An object containing the named parameters, e.g. { id: 5 }
      * @returns {Promise<any>} The query result
      */
@@ -64,7 +63,7 @@ class Database {
 
     /**
      * Retrieves a new database client
-     * @returns {Promise<pg.PoolClient>} The database client
+     * @returns {Promise<PoolClient>} The database client
      */
     async getClientUnsafe() {
         const client = await this.pool.connect();
@@ -127,13 +126,13 @@ class Database {
                 }
             }
             return client;
-        }
+        };
     }
 
     /**
      * Internal method to patch a datbase client, adding named parameters support and better error handling.
      * Needs to get called on every new client because pg-pool overrides the release method every time (meh)
-     * @param {pg.PoolClient} client
+     * @param {PoolClient} client
      */
     patchClient(client) {
 
@@ -149,11 +148,12 @@ class Database {
         // Patch the query method so that if it fails it will print an error first (and set the running flag)
         const db = this;
         const oldQueryMethod = client.query;
+
+        // @ts-ignore
         if (!oldQueryMethod.methodWasPatched_) {
             // this.logger.trace("Patching query method", { id: client.uniqueId });
             client.query = async function (text, params) {
                 const trimmedText = text.replace(/[ \n\r\t]+/gi, " ").replace(/^\s+|\s+$/g, "");
-                // db.logger.trace("Issuing query", { text: trimmedText, params });
                 this.lastQuery = { text: trimmedText, params };
                 this.isQueryRunning = true;
                 try {
@@ -165,12 +165,14 @@ class Database {
                 } finally {
                     this.isQueryRunning = false;
                 }
-            }
+            };
+            // @ts-ignore
             client.query.methodWasPatched_ = true;
         }
 
         // Patch the release method so we stop our sanity timeout
         const oldReleaseMethod = client.release;
+        // @ts-ignore
         if (!oldReleaseMethod.methodWasPatched_) {
             // this.logger.trace("Patching release method", { id: client.uniqueId });
             client.release = function () {
@@ -187,63 +189,66 @@ class Database {
 
                 // Actually release
                 return oldReleaseMethod.apply(this);
-            }
+            };
+            // @ts-ignore
             client.release.methodWasPatched_ = true;
         }
 
-
         // Patch the beginTransaction method
         const oldTransactionMethod = client.beginTransaction;
+        // @ts-ignore
         if (!oldTransactionMethod || !oldTransactionMethod.methodWasPatched_) {
             // this.logger.trace("Patching beginTransaction Method", { id: client.uniqueId });
             client.beginTransaction = async function () {
-                if (this.isWithinTransaction_) {
+                if (this.isWithinTransaction) {
                     db.logger.error("Tried to start transaction in transaction");
                     return false;
                 }
                 db.logger.trace("begin transaction");
                 await this.query("begin");
-                this.isWithinTransaction_ = true;
-            }
+                this.isWithinTransaction = true;
+            };
+            // @ts-ignore
             client.beginTransaction.methodWasPatched_ = true;
         }
 
         // Patch the commitTransaction method
         const oldCommitMethod = client.commitTransaction;
+        // @ts-ignore
         if (!oldCommitMethod || !oldCommitMethod.methodWasPatched_) {
             // this.logger.trace("Patching commitTransaction Method", { id: client.uniqueId });
             client.commitTransaction = async function () {
-                if (!this.isWithinTransaction_) {
+                if (!this.isWithinTransaction) {
                     db.logger.error("Tried to commit transaction outside of transaction");
                     return false;
                 }
                 db.logger.trace("committing");
                 await this.query("commit");
-                this.isWithinTransaction_ = false;
-            }
+                this.isWithinTransaction = false;
+            };
+            // @ts-ignore
             client.commitTransaction.methodWasPatched_ = true;
         }
 
         // Patch the rollbackTransactionIfNotCommitted method
         const oldRollbackMethod = client.rollbackTransactionIfNotCommitted;
+        // @ts-ignore
         if (!oldRollbackMethod || !oldRollbackMethod.methodWasPatched_) {
             // this.logger.trace("Patching rollbackTransactionIfNotCommitted Method", { id: client.uniqueId });
             client.rollbackTransactionIfNotCommitted = async function () {
-                if (this.isWithinTransaction_) {
+                if (this.isWithinTransaction) {
                     db.logger.warn("Rolling back transaction");
                     await this.query("rollback");
-                    this.isWithinTransaction_ = false;
+                    this.isWithinTransaction = false;
                 }
-            }
+            };
+            // @ts-ignore
             client.rollbackTransactionIfNotCommitted.methodWasPatched_ = true;
         }
 
-
     }
 
-
 }
-
 
 module.exports = {
     Database

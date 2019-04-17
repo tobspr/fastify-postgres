@@ -5,7 +5,7 @@
 
 // Copied here for easier usage and modified some stuff (Use '~' as placeholder)
 
-const _ = require('lodash');
+const _ = require("lodash");
 const tokenPattern = /\~[a-zA-Z]([a-zA-Z0-9_]*)\b/g;
 
 function numericFromNamed(sql, parameters) {
@@ -28,10 +28,10 @@ function numericFromNamed(sql, parameters) {
 
     var interpolatedSql = _.reduce(fillTokens,
         function (partiallyInterpolated, token, index) {
-            var replaceAllPattern = new RegExp('\\~' + fillTokens[index] + '\\b', "g");
+            var replaceAllPattern = new RegExp("\\~" + fillTokens[index] + "\\b", "g");
             return partiallyInterpolated
                 .replace(replaceAllPattern,
-                    '$' + (index + 1)); // PostGreSQL parameters are inexplicably 1-indexed.
+                    "$" + (index + 1)); // PostGreSQL parameters are inexplicably 1-indexed.
         }, sql);
 
     var out = {};
@@ -44,7 +44,7 @@ function numericFromNamed(sql, parameters) {
 function patchNamedParameters(client) {
     var originalQuery = client.query;
 
-    if (originalQuery.patched) return client;
+    if (originalQuery.patched) { return client; }
 
     originalQuery = originalQuery.bind(client);
 
@@ -58,11 +58,9 @@ function patchNamedParameters(client) {
 
         if (arguments.length === 1) {
             return originalQuery(config);
-        }
-        else if (arguments.length === 2 && _.isFunction(values)) {
+        } else if (arguments.length === 2 && _.isFunction(values)) {
             return originalQuery(config, values);
-        }
-        else if (_.isUndefined(values) || _.isNull(values) || _.isArray(values)) {
+        } else if (_.isUndefined(values) || _.isNull(values) || _.isArray(values)) {
             return originalQuery(config, values, callback);
         } else {
             reparameterized = numericFromNamed(config, values);
