@@ -222,9 +222,9 @@ class Database {
                     db.logger.error("Tried to commit transaction outside of transaction");
                     return false;
                 }
-                db.logger.trace("committing");
-                await this.query("commit");
+                // Note: Thsi must come before the async call!
                 this.isWithinTransaction = false;
+                await this.query("commit");
             };
             // @ts-ignore
             client.commitTransaction.methodWasPatched_ = true;
@@ -237,9 +237,10 @@ class Database {
             // this.logger.trace("Patching rollbackTransactionIfNotCommitted Method", { id: client.uniqueId });
             client.rollbackTransactionIfNotCommitted = async function () {
                 if (this.isWithinTransaction) {
+                    // Note: This must come before the async call!
+                    this.isWithinTransaction = false;
                     db.logger.warn("Rolling back transaction");
                     await this.query("rollback");
-                    this.isWithinTransaction = false;
                 }
             };
             // @ts-ignore
