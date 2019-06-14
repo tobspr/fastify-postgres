@@ -43,7 +43,7 @@ async function postgresDbConnector(fastify, options) {
         process.exit(-1);
         return;
     }
-    client.release();
+    await client.release();
 
     const database = new Database(fastify, { logger, pool, requestDecorator });
     database.registerHooks();

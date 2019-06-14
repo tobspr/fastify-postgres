@@ -27,21 +27,25 @@ class Database {
      */
     registerHooks() {
         // When the response has been sent, check if there is an active database client
-        this.fastify.addHook("onSend", async (request) => {
+        this.fastify.addHook("onSend", async request => {
             const clients = request.dbClients;
             if (clients && clients.length > 0) {
                 this.logger.trace("Releasing clients automatically on send", { amount: clients.length });
-                clients.forEach(client => client.release());
+                for (let i = 0; i < clients.length; ++i) {
+                    await clients[i].release();
+                }
             }
             request.dbClients = [];
         });
 
         // When the request errored, check if there is an active database client left
-        this.fastify.addHook("onError", async (request) => {
+        this.fastify.addHook("onError", async request => {
             const clients = request.dbClients;
             if (clients && clients.length > 0) {
                 this.logger.trace("Releasing clients automatically on send", { amount: clients.length });
-                clients.forEach(client => client.release());
+                for (let i = 0; i < clients.length; ++i) {
+                    await clients[i].release();
+                }
             }
             request.dbClients = [];
         });
@@ -115,7 +119,7 @@ class Database {
             if (this.fastify.addCleanupWork) {
                 // Use the cleanup plugin
                 this.fastify.addCleanupWork(request, async function () {
-                    client.release();
+                    await client.release();
                 }, "release-db-client");
             } else {
                 // Cleanup plugin not installed, manually cleanup
@@ -175,10 +179,10 @@ class Database {
         // @ts-ignore
         if (!oldReleaseMethod.methodWasPatched_) {
             // this.logger.trace("Patching release method", { id: client.uniqueId });
-            client.release = function () {
+            client.release = async function () {
                 db.logger.trace("Releasing client", { id: this.uniqueId });
 
-                this.rollbackTransactionIfNotCommitted();
+                await this.asyncTryRollback();
 
                 // Clear our timeout and state which checks for unreleased clients
                 this.isQueryRunning = false;
@@ -194,57 +198,62 @@ class Database {
             client.release.methodWasPatched_ = true;
         }
 
-        // Patch the beginTransaction method
-        const oldTransactionMethod = client.beginTransaction;
+        // Patch the asyncBeginTransaction method
+        const oldTransactionMethod = client.asyncBeginTransaction;
         // @ts-ignore
         if (!oldTransactionMethod || !oldTransactionMethod.methodWasPatched_) {
-            // this.logger.trace("Patching beginTransaction Method", { id: client.uniqueId });
-            client.beginTransaction = async function () {
+            // this.logger.trace("Patching asyncBeginTransaction Method", { id: client.uniqueId });
+            client.asyncBeginTransaction = async function () {
                 if (this.isWithinTransaction) {
                     db.logger.error("Tried to start transaction in transaction");
                     return false;
                 }
-                db.logger.trace("begin transaction");
-                await this.query("begin");
+                db.logger.trace("BEGIN", this.uniqueId);
                 this.isWithinTransaction = true;
+                await this.query("begin");
+                db.logger.trace("BEGIN < Done", this.uniqueId);
             };
             // @ts-ignore
-            client.beginTransaction.methodWasPatched_ = true;
+            client.asyncBeginTransaction.methodWasPatched_ = true;
         }
 
-        // Patch the commitTransaction method
-        const oldCommitMethod = client.commitTransaction;
+        // Patch the asyncCommitTransaction method
+        const oldCommitMethod = client.asyncCommitTransaction;
         // @ts-ignore
         if (!oldCommitMethod || !oldCommitMethod.methodWasPatched_) {
-            // this.logger.trace("Patching commitTransaction Method", { id: client.uniqueId });
-            client.commitTransaction = async function () {
+            // this.logger.trace("Patching asyncCommitTransaction Method", { id: client.uniqueId });
+            client.asyncCommitTransaction = async function () {
                 if (!this.isWithinTransaction) {
-                    db.logger.error("Tried to commit transaction outside of transaction");
+                    db.logger.error("Tried to commit transaction outside of transaction on client", this.uniqueId);
                     return false;
                 }
+                db.logger.trace("COMMIT", this.uniqueId);
                 // Note: Thsi must come before the async call!
-                this.isWithinTransaction = false;
                 await this.query("commit");
+                this.isWithinTransaction = false;
+                db.logger.trace("COMMIT < Done", this.uniqueId);
             };
             // @ts-ignore
-            client.commitTransaction.methodWasPatched_ = true;
+            client.asyncCommitTransaction.methodWasPatched_ = true;
         }
 
-        // Patch the rollbackTransactionIfNotCommitted method
-        const oldRollbackMethod = client.rollbackTransactionIfNotCommitted;
+        // Patch the asyncTryRollback method
+        const oldRollbackMethod = client.asyncTryRollback;
         // @ts-ignore
         if (!oldRollbackMethod || !oldRollbackMethod.methodWasPatched_) {
-            // this.logger.trace("Patching rollbackTransactionIfNotCommitted Method", { id: client.uniqueId });
-            client.rollbackTransactionIfNotCommitted = async function () {
+            // this.logger.trace("Patching asyncTryRollback Method", { id: client.uniqueId });
+            client.asyncTryRollback = async function () {
+                db.logger.trace("Called rollbackIfNotCommitted, within transaction = ", this.isWithinTransaction, "on client with id", this.uniqueId);
                 if (this.isWithinTransaction) {
                     // Note: This must come before the async call!
+                    db.logger.warn("ROLLBACK", this.uniqueId);
                     this.isWithinTransaction = false;
-                    db.logger.warn("Rolling back transaction");
                     await this.query("rollback");
+                    db.logger.warn("ROLLBACK < Done", this.uniqueId);
                 }
             };
             // @ts-ignore
-            client.rollbackTransactionIfNotCommitted.methodWasPatched_ = true;
+            client.asyncTryRollback.methodWasPatched_ = true;
         }
 
     }

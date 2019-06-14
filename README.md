@@ -75,7 +75,7 @@ fastify.get("/", {
 }, async (request, reply) => {
 
     // Start transaction
-    await request.dbClient.beginTransaction();
+    await request.dbClient.asyncBeginTransaction();
 
     // Issue query
     const query = await request.dbClient.query(`select * from sometable where id = ~id`, { id: 5 });
@@ -88,7 +88,7 @@ fastify.get("/", {
 
 
     // Commit transaction
-    await request.dbClient.commitTransaction();
+    await request.dbClient.asyncCommitTransaction();
 
     // Again, client will automatically get released
 
