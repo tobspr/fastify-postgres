@@ -208,7 +208,7 @@ class Database {
                     db.logger.error("Tried to start transaction in transaction");
                     return false;
                 }
-                db.logger.trace("BEGIN", this.uniqueId);
+                db.logger.trace("BEGIN <", this.uniqueId);
                 this.isWithinTransaction = true;
                 await this.query("begin");
                 db.logger.trace("BEGIN < Done", this.uniqueId);
@@ -227,7 +227,7 @@ class Database {
                     db.logger.error("Tried to commit transaction outside of transaction on client", this.uniqueId);
                     return false;
                 }
-                db.logger.trace("COMMIT", this.uniqueId);
+                db.logger.trace("COMMIT <", this.uniqueId);
                 // Note: Thsi must come before the async call!
                 await this.query("commit");
                 this.isWithinTransaction = false;
@@ -246,7 +246,7 @@ class Database {
                 db.logger.trace("Called rollbackIfNotCommitted, within transaction = ", this.isWithinTransaction, "on client with id", this.uniqueId);
                 if (this.isWithinTransaction) {
                     // Note: This must come before the async call!
-                    db.logger.warn("ROLLBACK", this.uniqueId);
+                    db.logger.warn("ROLLBACK <", this.uniqueId);
                     this.isWithinTransaction = false;
                     await this.query("rollback");
                     db.logger.warn("ROLLBACK < Done", this.uniqueId);
