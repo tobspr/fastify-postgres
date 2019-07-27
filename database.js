@@ -156,6 +156,8 @@ class Database {
         // @ts-ignore
         if (!oldQueryMethod.methodWasPatched_) {
             // this.logger.trace("Patching query method", { id: client.uniqueId });
+
+            // @ts-ignore
             client.query = async function (text, params) {
                 const trimmedText = text.replace(/[ \n\r\t]+/gi, " ").replace(/^\s+|\s+$/g, "");
                 this.lastQuery = { text: trimmedText, params };
@@ -203,6 +205,7 @@ class Database {
         // @ts-ignore
         if (!oldTransactionMethod || !oldTransactionMethod.methodWasPatched_) {
             // this.logger.trace("Patching asyncBeginTransaction Method", { id: client.uniqueId });
+            // @ts-ignore
             client.asyncBeginTransaction = async function () {
                 if (this.isWithinTransaction) {
                     db.logger.error("Tried to start transaction in transaction");
@@ -222,6 +225,7 @@ class Database {
         // @ts-ignore
         if (!oldCommitMethod || !oldCommitMethod.methodWasPatched_) {
             // this.logger.trace("Patching asyncCommitTransaction Method", { id: client.uniqueId });
+            // @ts-ignore
             client.asyncCommitTransaction = async function () {
                 if (!this.isWithinTransaction) {
                     db.logger.error("Tried to commit transaction outside of transaction on client", this.uniqueId);
@@ -242,6 +246,7 @@ class Database {
         // @ts-ignore
         if (!oldRollbackMethod || !oldRollbackMethod.methodWasPatched_) {
             // this.logger.trace("Patching asyncTryRollback Method", { id: client.uniqueId });
+            // @ts-ignore
             client.asyncTryRollback = async function () {
                 db.logger.trace("Called rollbackIfNotCommitted, within transaction = ", this.isWithinTransaction, "on client with id", this.uniqueId);
                 if (this.isWithinTransaction) {
