@@ -1,13 +1,12 @@
 
 const pg = require("pg");
 
-// Named parameters
-const patchNamedParameters = require("./named_parameters").patchNamedParameters;
+import { patchNamedParameters } from "./named_parameters";
 
 /**
  * Main database handler
  */
-class Database {
+export class Database {
 
     /**
      *
@@ -264,7 +263,3 @@ class Database {
     }
 
 }
-
-module.exports = {
-    Database
-};

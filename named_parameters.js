@@ -41,7 +41,7 @@ function numericFromNamed(sql, parameters) {
     return out;
 }
 
-function patchNamedParameters(client) {
+export function patchNamedParameters(client) {
     var originalQuery = client.query;
 
     if (originalQuery.patched) { return client; }
@@ -73,7 +73,3 @@ function patchNamedParameters(client) {
 
     return client;
 }
-
-module.exports = {
-    patchNamedParameters
-};

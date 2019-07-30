@@ -1,7 +1,7 @@
 
-// @ts-ignore
+import { Database } from "./database";
+
 const fastifyPlugin = require("fastify-plugin");
-const Database = require("./database").Database;
 let pg = require("pg");
 
 // Use native if available
