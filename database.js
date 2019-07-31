@@ -213,7 +213,6 @@ export class Database {
                 db.logger.trace("BEGIN <", this.uniqueId);
                 this.isWithinTransaction = true;
                 await this.query("begin");
-                db.logger.trace("BEGIN < Done", this.uniqueId);
             };
             // @ts-ignore
             client.asyncBeginTransaction.methodWasPatched_ = true;
@@ -234,7 +233,6 @@ export class Database {
                 // Note: Thsi must come before the async call!
                 await this.query("commit");
                 this.isWithinTransaction = false;
-                db.logger.trace("COMMIT < Done", this.uniqueId);
             };
             // @ts-ignore
             client.asyncCommitTransaction.methodWasPatched_ = true;
