@@ -73,7 +73,7 @@ export class Database {
         if (!client.uniqueId) {
             client.uniqueId = this.clientIdCounter++;
         }
-        this.logger.trace("Acquired client", { id: client.uniqueId });
+        // this.logger.trace("Acquired client", { id: client.uniqueId });
 
         this.patchClient(client);
 
@@ -181,7 +181,7 @@ export class Database {
         if (!oldReleaseMethod.methodWasPatched_) {
             // this.logger.trace("Patching release method", { id: client.uniqueId });
             client.release = async function () {
-                db.logger.trace("Releasing client", { id: this.uniqueId });
+                // db.logger.trace("Releasing client", { id: this.uniqueId });
 
                 await this.asyncTryRollback();
 
@@ -245,7 +245,7 @@ export class Database {
             // this.logger.trace("Patching asyncTryRollback Method", { id: client.uniqueId });
             // @ts-ignore
             client.asyncTryRollback = async function () {
-                db.logger.trace("Called rollbackIfNotCommitted, within transaction = ", this.isWithinTransaction, "on client with id", this.uniqueId);
+                // db.logger.trace("Called rollbackIfNotCommitted, within transaction = ", this.isWithinTransaction, "on client with id", this.uniqueId);
                 if (this.isWithinTransaction) {
                     // Note: This must come before the async call!
                     db.logger.warn("ROLLBACK <", this.uniqueId);
