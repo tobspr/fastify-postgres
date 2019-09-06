@@ -59,8 +59,8 @@ export class Database {
     async query(text, params) {
         const start = new Date().getTime();
         const result = await this.pool.query(text, params);
-        this.logger.trace("Executed single query",
-            { text, duration: new Date().getTime() - start, rows: result.rowCount });
+        // this.logger.trace("Executed single query",
+        //     { text, duration: new Date().getTime() - start, rows: result.rowCount });
         return result;
     }
 
@@ -165,7 +165,7 @@ export class Database {
                     const result = await oldQueryMethod.call(this, text, params);
                     return result;
                 } catch (err) {
-                    db.logger.error("Database query error", { error: err });
+                    db.logger.error("Database query error", { error: err, lastQuery: this.lastQuery });
                     throw err;
                 } finally {
                     this.isQueryRunning = false;
