@@ -58,11 +58,23 @@ export class Database {
      * @returns {Promise<any>} The query result
      */
     async query(text, params) {
-        const start = new Date().getTime();
-        const result = await this.pool.query(text, params);
-        // this.logger.trace("Executed single query",
-        //     { text, duration: new Date().getTime() - start, rows: result.rowCount });
-        return result;
+
+        let client = null;
+        try {
+            client = await this.getClientUnsafe();
+        } catch (ex) {
+            this.logger.error("Failed to acquire client for single query:", ex);
+            throw ex;
+        }
+
+        try {
+            return await client.query(text, params);
+        } catch (ex) {
+            this.logger.error("Failed to execute single query:", ex);
+            throw ex;
+        } finally {
+            client.release();
+        }
     }
 
     /**
@@ -74,6 +86,7 @@ export class Database {
         if (!client.uniqueId) {
             client.uniqueId = this.clientIdCounter++;
         }
+        client.lastQuery = { text: null, params: null };
 
         ++this.checkedOutClients;
         this.logger.info("Acquired client", { id: client.uniqueId, total: this.checkedOutClients });
@@ -164,8 +177,10 @@ export class Database {
                 const trimmedText = text.replace(/[ \n\r\t]+/gi, " ").replace(/^\s+|\s+$/g, "");
                 this.lastQuery = { text: trimmedText, params };
                 this.isQueryRunning = true;
+                // db.logger.trace("client", this.uniqueId, "is querying", text);
                 try {
                     const result = await oldQueryMethod.call(this, text, params);
+                    // db.logger.trace("client", this.uniqueId, "got", result.rows.length, "rows");
                     return result;
                 } catch (err) {
                     db.logger.error("Database query error", { error: err, lastQuery: this.lastQuery });
