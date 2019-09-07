@@ -1,7 +1,6 @@
-
-const pg = require("pg");
-
 import { patchNamedParameters } from "./named_parameters";
+
+
 
 /**
  * Main database handler
@@ -19,6 +18,8 @@ export class Database {
         this.pool = pool;
         this.requestDecorator = requestDecorator;
         this.clientIdCounter = 1;
+
+        this.checkedOutClients = 0;
     }
 
     /**
@@ -73,7 +74,9 @@ export class Database {
         if (!client.uniqueId) {
             client.uniqueId = this.clientIdCounter++;
         }
-        // this.logger.trace("Acquired client", { id: client.uniqueId });
+
+        ++this.checkedOutClients;
+        this.logger.info("Acquired client", { id: client.uniqueId, total: this.checkedOutClients });
 
         this.patchClient(client);
 
@@ -180,8 +183,12 @@ export class Database {
         // @ts-ignore
         if (!oldReleaseMethod.methodWasPatched_) {
             // this.logger.trace("Patching release method", { id: client.uniqueId });
+
             client.release = async function () {
-                // db.logger.trace("Releasing client", { id: this.uniqueId });
+                db.checkedOutClients--;
+
+                db.logger.info("Releasing client", { id: this.uniqueId, remaining: db.checkedOutClients });
+
 
                 await this.asyncTryRollback();
 
