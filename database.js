@@ -89,7 +89,7 @@ export class Database {
         client.lastQuery = { text: null, params: null };
 
         ++this.checkedOutClients;
-        this.logger.info("Acquired client", { id: client.uniqueId, total: this.checkedOutClients });
+        this.logger.trace("Acquired client", { id: client.uniqueId, total: this.checkedOutClients });
 
         this.patchClient(client);
 
@@ -202,7 +202,7 @@ export class Database {
             client.release = async function () {
                 db.checkedOutClients--;
 
-                db.logger.info("Releasing client", { id: this.uniqueId, remaining: db.checkedOutClients });
+                db.logger.trace("Releasing client", { id: this.uniqueId, remaining: db.checkedOutClients });
 
 
                 await this.asyncTryRollback();
