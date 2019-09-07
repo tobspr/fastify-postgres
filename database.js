@@ -99,7 +99,7 @@ export class Database {
             // If the apm (Application Performance Monitoring) plugin is available, send report
             if (this.fastify.apmTrackError) {
                 this.fastify.apmTrackError("DB Client has been checked out for more than 25 seconds",
-                    { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning });
+                    { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
             } else {
                 this.logger.error("A client has been checked out for more than 25 seconds, forced release",
                     { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
