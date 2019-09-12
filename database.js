@@ -12,7 +12,7 @@ export class Database {
      * @param {any} fastify The fastify instance
      * @param {any} logger The logger, usually fastify.log or fastify.log.child
      */
-    constructor(fastify, { logger, pool, requestDecorator }) {
+    constructor(fastify, { logger, pool, requestDecorator, timeoutMs = 25000 }) {
         this.fastify = fastify;
         this.logger = logger;
         this.pool = pool;
@@ -20,6 +20,7 @@ export class Database {
         this.clientIdCounter = 1;
 
         this.checkedOutClients = 0;
+        this.timeoutMs = timeoutMs;
     }
 
     /**
@@ -117,7 +118,7 @@ export class Database {
                 this.logger.error("A client has been checked out for more than 25 seconds, forced release",
                     { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
             }
-        }, 25000);
+        }, this.timeoutMs || 25000);
         return client;
     }
 
