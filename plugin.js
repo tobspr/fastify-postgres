@@ -30,7 +30,9 @@ async function postgresDbConnector(fastify, options) {
         ssl: !!(pg === pg.native), // Not supported with pg-native
 
         keepAlive: options.keepAlive !== undefined ? options.keepAlive : true,
-        max: options.maxConnections || 20
+        max: options.maxConnections || 20,
+
+        application_name: options.appName || "fastify-postgres"
     });
 
     pool.on("error", (err) => {
