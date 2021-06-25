@@ -5,7 +5,7 @@ const fastifyPlugin = require("fastify-plugin");
 let pg = require("pg");
 
 // Use native if available
-pg = pg.native || pg;
+// pg = pg.native || pg;
 
 // Set Keepalive
 pg.defaults.poolIdleTimeout = 60000; // 1 mins
@@ -25,9 +25,11 @@ async function postgresDbConnector(fastify, options) {
         client: pg.Client,
         connectionString: options.url,
         connectionTimeoutMillis: options.connectionTimeout || 5000,
-        
-        
-        ssl: !!(pg === pg.native), // Not supported with pg-native
+
+        ssl: {
+            require: true,
+            rejectUnauthorized: false,
+        },
 
         keepAlive: options.keepAlive !== undefined ? options.keepAlive : true,
         max: options.maxConnections || 20,
