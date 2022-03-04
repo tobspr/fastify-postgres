@@ -1,5 +1,4 @@
-
-import { Database } from "./database";
+const Database = require("./database").Database;
 
 const fastifyPlugin = require("fastify-plugin");
 let pg = require("pg");
@@ -12,7 +11,6 @@ pg.defaults.poolIdleTimeout = 60000; // 1 mins
 
 // Main plugin
 async function postgresDbConnector(fastify, options) {
-
     const decoratorName = options.decoratorName || "database";
     const requestDecorator = options.requestDecoratorName || "dbClient";
 
@@ -34,10 +32,10 @@ async function postgresDbConnector(fastify, options) {
         keepAlive: options.keepAlive !== undefined ? options.keepAlive : true,
         max: options.maxConnections || 20,
 
-        application_name: options.appName || "fastify-postgres"
+        application_name: options.appName || "fastify-postgres",
     });
 
-    pool.on("error", (err) => {
+    pool.on("error", err => {
         logger.error("Unexpected error on idle client:", { error: err.message });
     });
 
