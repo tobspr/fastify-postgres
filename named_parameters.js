@@ -1,4 +1,3 @@
-
 // PG Named Parameters
 // https://github.com/bwestergard/node-postgres-named
 // MIT License
@@ -10,9 +9,11 @@ const tokenPattern = /\~[a-zA-Z]([a-zA-Z0-9_]*)\b/g;
 
 function numericFromNamed(sql, parameters) {
     var fillableTokens = Object.keys(parameters);
-    var matchedTokens = _.uniq(_.map(sql.match(tokenPattern), function (token) {
-        return token.substring(1); // Remove leading dollar sign
-    }));
+    var matchedTokens = _.uniq(
+        _.map(sql.match(tokenPattern), function (token) {
+            return token.substring(1); // Remove leading dollar sign
+        })
+    );
 
     var fillTokens = _.intersection(fillableTokens, matchedTokens).sort();
     var fillValues = _.map(fillTokens, function (token) {
@@ -26,13 +27,14 @@ function numericFromNamed(sql, parameters) {
         throw new Error("Missing Parameters: " + missing);
     }
 
-    var interpolatedSql = _.reduce(fillTokens,
+    var interpolatedSql = _.reduce(
+        fillTokens,
         function (partiallyInterpolated, token, index) {
             var replaceAllPattern = new RegExp("\\~" + fillTokens[index] + "\\b", "g");
-            return partiallyInterpolated
-                .replace(replaceAllPattern,
-                    "$" + (index + 1)); // PostGreSQL parameters are inexplicably 1-indexed.
-        }, sql);
+            return partiallyInterpolated.replace(replaceAllPattern, "$" + (index + 1)); // PostGreSQL parameters are inexplicably 1-indexed.
+        },
+        sql
+    );
 
     var out = {};
     out.sql = interpolatedSql;
@@ -41,10 +43,12 @@ function numericFromNamed(sql, parameters) {
     return out;
 }
 
-export function patchNamedParameters(client) {
+function patchNamedParameters(client) {
     var originalQuery = client.query;
 
-    if (originalQuery.patched) { return client; }
+    if (originalQuery.patched) {
+        return client;
+    }
 
     originalQuery = originalQuery.bind(client);
 
@@ -73,3 +77,5 @@ export function patchNamedParameters(client) {
 
     return client;
 }
+
+module.exports = { patchNamedParameters };
