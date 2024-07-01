@@ -1,12 +1,9 @@
 import { patchNamedParameters } from "./named_parameters";
 
-
-
 /**
  * Main database handler
  */
 export class Database {
-
     /**
      *
      * @param {any} fastify The fastify instance
@@ -59,7 +56,6 @@ export class Database {
      * @returns {Promise<any>} The query result
      */
     async query(text, params) {
-
         let client = null;
         try {
             client = await this.getClientUnsafe();
@@ -103,20 +99,44 @@ export class Database {
         }
 
         if (client.isQueryRunning) {
-            this.logger.error("Client is running query and still got returned from pool", { id: client.uniqueId });
+            this.logger.error("Client is running query and still got returned from pool", {
+                id: client.uniqueId,
+            });
         }
 
         // Set a timeout of x seconds after which we will log this client's last query
         client.sanityTimeout = setTimeout(() => {
-            client.release();
-
             // If the apm (Application Performance Monitoring) plugin is available, send report
             if (this.fastify.apmTrackError) {
-                this.fastify.apmTrackError("DB Client has been checked out for more than 25 seconds",
-                    { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
+                this.fastify.apmTrackError("DB Client has been checked out for more than 25 seconds", {
+                    lastQuery: client.lastQuery,
+                    stillRunning: client.isQueryRunning,
+                    id: client.uniqueId,
+                });
             } else {
-                this.logger.error("A client has been checked out for more than 25 seconds, forced release",
-                    { lastQuery: client.lastQuery, stillRunning: client.isQueryRunning, id: client.uniqueId });
+                this.logger.error("A client has been checked out for more than 25 seconds, forced release", {
+                    lastQuery: client.lastQuery,
+                    stillRunning: client.isQueryRunning,
+                    id: client.uniqueId,
+                });
+            }
+
+            try {
+                client.release();
+            } catch (e) {
+                if (this.fastify.apmTrackError) {
+                    this.fastify.apmTrackError("FAILED to release pending client", {
+                        lastQuery: client.lastQuery,
+                        stillRunning: client.isQueryRunning,
+                        id: client.uniqueId,
+                    });
+                } else {
+                    this.logger.error("FAILED to release pending client", {
+                        lastQuery: client.lastQuery,
+                        stillRunning: client.isQueryRunning,
+                        id: client.uniqueId,
+                    });
+                }
             }
         }, this.timeoutMs || 25000);
         return client;
@@ -127,16 +147,20 @@ export class Database {
      * @returns {Function} decorator
      */
     requireDbClient() {
-        return async (request) => {
+        return async request => {
             // Simply acquire a client under the given name
             const client = await this.getClientUnsafe();
             request[this.requestDecorator] = client;
 
             if (this.fastify.addCleanupWork) {
                 // Use the cleanup plugin
-                this.fastify.addCleanupWork(request, async function () {
-                    await client.release();
-                }, "release-db-client");
+                this.fastify.addCleanupWork(
+                    request,
+                    async function () {
+                        await client.release();
+                    },
+                    "release-db-client"
+                );
             } else {
                 // Cleanup plugin not installed, manually cleanup
                 if (!request.dbClients) {
@@ -155,7 +179,6 @@ export class Database {
      * @param {PoolClient} client
      */
     patchClient(client) {
-
         // this.logger.trace("Patching client", { id: client.uniqueId });
 
         // Add support for named parameters
@@ -205,7 +228,6 @@ export class Database {
 
                 db.logger.trace("Releasing client", { id: this.uniqueId, remaining: db.checkedOutClients });
 
-
                 await this.asyncTryRollback();
 
                 // Clear our timeout and state which checks for unreleased clients
@@ -249,7 +271,10 @@ export class Database {
             // @ts-ignore
             client.asyncCommitTransaction = async function () {
                 if (!this.isWithinTransaction) {
-                    db.logger.error("Tried to commit transaction outside of transaction on client", this.uniqueId);
+                    db.logger.error(
+                        "Tried to commit transaction outside of transaction on client",
+                        this.uniqueId
+                    );
                     return false;
                 }
                 db.logger.trace("COMMIT <", this.uniqueId);
@@ -280,7 +305,5 @@ export class Database {
             // @ts-ignore
             client.asyncTryRollback.methodWasPatched_ = true;
         }
-
     }
-
 }
