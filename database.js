@@ -106,8 +106,6 @@ class Database {
 
         // Set a timeout of x seconds after which we will log this client's last query
         client.sanityTimeout = setTimeout(() => {
-            client.release();
-
             // If the apm (Application Performance Monitoring) plugin is available, send report
             if (this.fastify.apmTrackError) {
                 this.fastify.apmTrackError("DB Client has been checked out for more than 25 seconds", {
@@ -121,6 +119,24 @@ class Database {
                     stillRunning: client.isQueryRunning,
                     id: client.uniqueId,
                 });
+            }
+
+            try {
+                client.release();
+            } catch (e) {
+                if (this.fastify.apmTrackError) {
+                    this.fastify.apmTrackError("FAILED to release pending client", {
+                        lastQuery: client.lastQuery,
+                        stillRunning: client.isQueryRunning,
+                        id: client.uniqueId,
+                    });
+                } else {
+                    this.logger.error("FAILED to release pending client", {
+                        lastQuery: client.lastQuery,
+                        stillRunning: client.isQueryRunning,
+                        id: client.uniqueId,
+                    });
+                }
             }
         }, this.timeoutMs || 25000);
         return client;
